@@ -1,0 +1,42 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>To Do Mock-ups</title>
+<style>
+  body { font-family: sans-serif; background: #f0f0f3; color: #222; margin: 0; padding: 32px 16px; }
+  h1 { text-align: center; font-size: 26px; margin: 0 0 8px; }
+  .intro { text-align: center; color: #555; margin: 0 0 32px; }
+  h2 { font-size: 18px; margin: 0 0 2px; }
+  .size { font-size: 14px; color: #666; margin: 0 0 14px; }
+  .phones { display: flex; flex-wrap: wrap; justify-content: center; gap: 48px; }
+  figure { margin: 0; text-align: center; max-width: 100%; }
+  .frame { background: #111; border-radius: 42px; padding: 14px; width: 280px; max-width: 100%; box-sizing: border-box;
+           box-shadow: 0 10px 30px rgba(0,0,0,.25); position: relative; }
+  .frame img { display: block; width: 100%; border-radius: 28px; background: #fff; }
+  .iphone::before { content: ""; position: absolute; top: 20px; left: 50%; transform: translateX(-50%);
+                    width: 90px; height: 24px; background: #111; border-radius: 14px; }
+  .galaxy::before { content: ""; position: absolute; top: 22px; left: 50%; transform: translateX(-50%);
+                    width: 12px; height: 12px; background: #111; border-radius: 50%; }
+  .galaxy { border-radius: 30px; }
+  .galaxy img { border-radius: 18px; }
+</style>
+</head>
+<body>
+  <h1>To Do app on phones</h1>
+  <p class="intro">How the app looks at two common phone screen sizes.</p>
+  <div class="phones">
+    <figure>
+      <h2>iPhone</h2>
+      <p class="size">393 × 852</p>
+      <div class="frame iphone"><img src="iphone-393x852.jpg" alt="To Do app at iPhone size"></div>
+    </figure>
+    <figure>
+      <h2>Samsung Galaxy S25</h2>
+      <p class="size">360 × 780</p>
+      <div class="frame galaxy"><img src="galaxy-s25-360x780.jpg" alt="To Do app at Galaxy S25 size"></div>
+    </figure>
+  </div>
+</body>
+</html>

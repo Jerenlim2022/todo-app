@@ -1,0 +1,267 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>To Do</title>
+<style>
+  :root {
+    color-scheme: light;
+    --bg: #fff; --fg: #000; --muted: #666; --border: #ddd;
+    --badge-bg: #e8eefc; --badge-fg: #234; --overdue: #c00; --done: #888;
+  }
+  :root[data-theme=dark] {
+    color-scheme: dark;
+    --bg: #1e1e1e; --fg: #eee; --muted: #aaa; --border: #444;
+    --badge-bg: #2c3a5c; --badge-fg: #dbe4ff; --overdue: #ff6b6b; --done: #888;
+  }
+  body { font-family: sans-serif; max-width: 520px; margin: 40px auto; padding: 0 16px;
+         background: var(--bg); color: var(--fg); }
+  .theme-row { text-align: right; }
+  .theme-btn { font-size: 16px; padding: 2px 8px; cursor: pointer; opacity: 0.5; }
+  .theme-btn[aria-pressed=true] { opacity: 1; outline: 2px solid var(--muted); }
+  h1 { text-align: center; }
+  form { display: flex; flex-wrap: wrap; gap: 8px; }
+  form #input { flex: 1 1 100%; }
+  form #category { flex: 1; min-width: 0; }
+  /* 16px stops iPhone Safari from zooming the page when a field is tapped */
+  input[type=text], input[type=date], select { padding: 6px; font-size: 16px; }
+  li button, form button { min-width: 36px; min-height: 36px; font-size: 16px; }
+  li input[type=checkbox] { width: 20px; height: 20px; }
+  ul { list-style: none; padding: 0; }
+  li { display: flex; align-items: center; gap: 8px; padding: 6px 0; border-bottom: 1px solid var(--border); }
+  .main { flex: 1; display: flex; flex-direction: column; gap: 4px; min-width: 0; }
+  .fields { flex-direction: row; flex-wrap: wrap; }
+  .fields .edit-text { flex: 1 1 100%; }
+  .fields .edit-category { flex: 1; min-width: 0; }
+  .meta { font-size: 12px; color: var(--muted); display: flex; gap: 8px; }
+  .badge { background: var(--badge-bg); color: var(--badge-fg); padding: 1px 6px; border-radius: 8px; }
+  .overdue { color: var(--overdue); font-weight: bold; }
+  li.done .text { text-decoration: line-through; color: var(--done); }
+</style>
+</head>
+<body>
+  <div class="theme-row">
+    <span role="group" aria-label="Theme">
+      <button type="button" class="theme-btn" data-theme="light" title="Light mode" aria-label="Light mode">☀️</button>
+      <button type="button" class="theme-btn" data-theme="dark" title="Dark mode" aria-label="Dark mode">🌙</button>
+    </span>
+  </div>
+  <h1>To Do</h1>
+  <form id="form">
+    <input type="text" id="input" placeholder="New task" autofocus>
+    <select id="category" title="Category (optional)"></select>
+    <input type="date" id="due" title="Due date (optional)">
+    <button type="submit">Add</button>
+  </form>
+  <ul id="list"></ul>
+
+<script>
+  const STORAGE_KEY = 'todo-tasks';
+
+  function load() {
+    try {
+      const saved = JSON.parse(localStorage.getItem(STORAGE_KEY));
+      return Array.isArray(saved) ? saved : [];
+    } catch (err) {
+      return []; // storage unavailable or data corrupted
+    }
+  }
+
+  function save() {
+    try {
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(tasks));
+    } catch (err) { /* storage unavailable: app still works, just not saved */ }
+  }
+
+  let tasks = load();
+  let nextId = tasks.reduce((max, t) => Math.max(max, t.id), 0) + 1;
+  let editingId = null;
+  const list = document.getElementById('list');
+
+  function today() {
+    return new Date().toLocaleDateString('en-CA'); // YYYY-MM-DD, local time
+  }
+
+  function formatDate(iso) {
+    return new Date(iso + 'T00:00').toLocaleDateString(undefined,
+      { month: 'short', day: 'numeric', year: 'numeric' });
+  }
+
+  const CATEGORIES = ['Work', 'Personal', 'Other'];
+
+  // Fill a <select> with an empty "Category" choice + the fixed list. A saved category that is
+  // no longer in the list (e.g. from the earlier free-text version) is kept as an option.
+  function fillCategories(select, current) {
+    const names = CATEGORIES.includes(current) || !current ? CATEGORIES : [...CATEGORIES, current];
+    select.innerHTML = '';
+    select.add(new Option('Category', ''));
+    for (const name of names) select.add(new Option(name, name));
+    select.value = current || '';
+  }
+
+  function categoryField(value) {
+    const el = document.createElement('select');
+    el.className = 'edit-field edit-category';
+    fillCategories(el, value);
+    return el;
+  }
+
+  function field(cls, type, value, placeholder) {
+    const el = document.createElement('input');
+    el.type = type;
+    el.className = 'edit-field ' + cls;
+    el.value = value;
+    if (placeholder) el.placeholder = placeholder;
+    return el;
+  }
+
+  function render() {
+    save();
+    list.innerHTML = '';
+    for (const t of tasks) {
+      const li = document.createElement('li');
+      li.className = t.done ? 'done' : '';
+      li.dataset.id = t.id;
+
+      const box = document.createElement('input');
+      box.type = 'checkbox';
+      box.checked = t.done;
+
+      const main = document.createElement('div');
+      main.className = 'main';
+
+      if (t.id === editingId) {
+        main.classList.add('fields');
+        main.append(
+          field('edit-text', 'text', t.text, 'Task'),
+          categoryField(t.category),
+          field('edit-due', 'date', t.due)
+        );
+      } else {
+        const text = document.createElement('span');
+        text.className = 'text';
+        text.textContent = t.text;
+        main.append(text);
+
+        if (t.category || t.due) {
+          const meta = document.createElement('div');
+          meta.className = 'meta';
+          if (t.category) {
+            const b = document.createElement('span');
+            b.className = 'badge';
+            b.textContent = t.category;
+            meta.append(b);
+          }
+          if (t.due) {
+            const d = document.createElement('span');
+            const overdue = !t.done && t.due < today();
+            d.textContent = (overdue ? 'Overdue: ' : 'Due ') + formatDate(t.due);
+            if (overdue) d.className = 'overdue';
+            meta.append(d);
+          }
+          main.append(meta);
+        }
+      }
+
+      const edit = document.createElement('button');
+      edit.textContent = '✎';
+      edit.className = 'edit-btn';
+      edit.title = 'Edit';
+
+      const del = document.createElement('button');
+      del.textContent = '×';
+      del.className = 'del';
+      del.title = 'Delete';
+
+      li.append(box, main, edit, del);
+      list.append(li);
+    }
+    const active = list.querySelector('.edit-text');
+    if (active) { active.focus(); active.select(); }
+  }
+
+  // Save (or cancel) the item currently being edited
+  function finishEdit(save, li) {
+    if (editingId === null) return;
+    const t = tasks.find(t => t.id === editingId);
+    if (save && t && li) {
+      const text = li.querySelector('.edit-text').value.trim();
+      if (text) t.text = text; // blank text keeps the old one
+      t.category = li.querySelector('.edit-category').value.trim();
+      t.due = li.querySelector('.edit-due').value;
+    }
+    editingId = null;
+    render();
+  }
+
+  document.getElementById('form').addEventListener('submit', e => {
+    e.preventDefault();
+    const input = document.getElementById('input');
+    const category = document.getElementById('category');
+    const due = document.getElementById('due');
+    const text = input.value.trim();
+    if (!text) return;
+    tasks.push({
+      id: nextId++, text, done: false,
+      category: category.value.trim(), due: due.value
+    });
+    input.value = category.value = due.value = '';
+    render();
+  });
+
+  list.addEventListener('keydown', e => {
+    if (!e.target.classList.contains('edit-field')) return;
+    if (e.key === 'Enter') finishEdit(true, e.target.closest('li'));
+    else if (e.key === 'Escape') finishEdit(false);
+  });
+
+  // Save when focus leaves the row (but not when moving between its fields)
+  list.addEventListener('focusout', e => {
+    if (!e.target.classList.contains('edit-field')) return;
+    const li = e.target.closest('li');
+    if (e.relatedTarget && li.contains(e.relatedTarget)) return;
+    finishEdit(true, li);
+  });
+
+  list.addEventListener('click', e => {
+    const li = e.target.closest('li');
+    if (!li) return;
+    const id = Number(li.dataset.id);
+    if (e.target.classList.contains('del')) {
+      tasks = tasks.filter(t => t.id !== id);
+    } else if (e.target.classList.contains('edit-btn')) {
+      editingId = id;
+    } else if (e.target.type === 'checkbox') {
+      const t = tasks.find(t => t.id === id);
+      t.done = e.target.checked;
+    } else {
+      return;
+    }
+    render();
+  });
+
+  fillCategories(document.getElementById('category'), '');
+
+  // Theme: remembered choice, otherwise follow the system setting
+  const themeButtons = document.querySelectorAll('.theme-btn');
+
+  function applyTheme(theme) {
+    document.documentElement.dataset.theme = theme;
+    themeButtons.forEach(b => b.setAttribute('aria-pressed', b.dataset.theme === theme));
+  }
+
+  let savedTheme = null;
+  try { savedTheme = localStorage.getItem('todo-theme'); } catch (err) {}
+  applyTheme(savedTheme === 'dark' || savedTheme === 'light' ? savedTheme
+    : (matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light'));
+
+  themeButtons.forEach(b => b.addEventListener('click', () => {
+    applyTheme(b.dataset.theme);
+    try { localStorage.setItem('todo-theme', b.dataset.theme); } catch (err) {}
+  }));
+
+  render(); // show saved tasks on page load
+</script>
+</body>
+</html>
